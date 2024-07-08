@@ -1,0 +1,26 @@
+# Code to set the Dropbox path environment variable automatically
+source_dropbox_path <- function() {
+    library(jsonlite)
+    find_dropbox_path <- function() {
+        info_json_path <- "C:\\Users\\onkwocha\\AppData\\Local\\Dropbox\\info.json"
+        if (file.exists(info_json_path)) {
+            info <- fromJSON(info_json_path)
+            if ("personal" %in% names(info) && "path" %in% names(info$personal)) {
+                return(info$personal$path)
+            } else {
+                message("Dropbox personal path not found in info.json")
+            }
+        } else {
+            message("Dropbox info.json does not exist at the expected location.")
+        }
+        NULL
+    }
+    
+    dropbox_path <- find_dropbox_path()
+    if (!is.null(dropbox_path)) {
+        Sys.setenv(DROPBOX_PATH = dropbox_path)
+    }
+}
+
+# Call the function to set the environment variable
+source_dropbox_path()

@@ -1,0 +1,24 @@
+{
+    "id": "DE5FF3F1",
+    "path": "C:/Users/oguch/Dropbox/CSVS/OB Service/Analysis/raw.dta_21.R",
+    "project_path": "raw.dta_21.R",
+    "type": "r_source",
+    "hash": "4265148448",
+    "contents": "",
+    "dirty": false,
+    "created": 1713751706911.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1713736964,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1713736964,
+    "read_only": false,
+    "read_only_alternatives": []
+}

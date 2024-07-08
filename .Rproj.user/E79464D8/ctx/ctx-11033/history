@@ -1,0 +1,3 @@
+getwd()
+quarto render OB_data_document_6_16_pm3.qmd --no-embed-resources
+install.packages("utf8")

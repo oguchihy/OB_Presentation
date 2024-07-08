@@ -1,0 +1,42 @@
+---
+title: "OB Data"
+author: "Nkwocha"
+format: html
+editor: visual
+---
+
+```{r}
+library(plotly)
+
+# Choose the feature you want to plot
+feature_name <- "age" # Example feature
+
+# Filter 'shap_long' for the specific feature
+# In your case, it seems you don't need to filter by 'feature_name' since 'shap_long' directly contains 'age'
+plot_data <- shap_long
+
+# Generate the plot for the chosen feature
+fig <- plot_ly(plot_data, x = ~get(feature_name), y = ~value, type = 'scatter', mode = 'markers',
+               marker = list(color = 'rgba(255, 182, 193, .9)', size = 12),
+               text = ~paste(feature_name, "Value: ", get(feature_name), "<br>SHAP Value: ", value)) %>%
+  layout(title = paste("SHAP Values for", feature_name),
+         xaxis = list(title = feature_name),
+         yaxis = list(title = 'SHAP Value'))
+
+fig
+
+
+# Replace `gestational_days` with the feature you’re interested in, and adjust the dataframe `shap_long` to match the structure of your data. This code block generates an interactive scatter plot of SHAP values for a specific feature.
+
+### Tabular Display of SHAP Values
+
+# If you also need a tabular way to arrange and display SHAP values for features, you can use Quarto to create interactive tables using the `DT` package in R:
+
+library(DT)
+
+# Example: Display top 10 SHAP values for a feature
+datatable(head(shap_long[shap_long$feature == feature_name, ], 10),
+          options = list(pageLength = 10))
+
+
+```
