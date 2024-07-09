@@ -1,0 +1,104 @@
+
+
+---
+
+### Meta Summary
+
+#### Overview
+The OB data analysis covers deliveries at NMC for CSVS prenatal patients over a period of 27 months (December 2021 to March 2024), with a total of 1720 deliveries. The dataset includes 853 female, 845 male, and 22 unknown gender deliveries, with a 0.8% incidence of multiple gestations (twins). The cesarean section rate was 23.7%, with 51.4% being primary sections. The average monthly delivery rate was 64, with an average birth weight of 3300 grams. Maternal ages ranged from 13 to 44, with a median age of 27.
+
+#### Key Findings
+
+1. **Age and Parity**:
+   - Majority of the deliveries were to women aged 27 on average.
+   - Parity analysis showed that about 52% of deliveries were from women with 1 or 2 previous deliveries.
+
+2. **Birth Weight and Gestational Age**:
+   - The average birth weight was 3300 grams, with a wide range from 180 to 5030 grams.
+   - Cluster analysis identified three distinct groups based on gestational age and birth weight:
+     - Term, full (40.2%)
+     - Term, early (55.6%)
+     - Pre-term (4.1%)
+   - Pre-term deliveries, as defined by gestational age under 37 weeks, accounted for 8% of the deliveries.
+
+3. **High-Risk OB**:
+   - Defined based on maternal age >35, diagnoses of hypertension, preeclampsia, diabetes, multiple gestations, or non-vertex presentations.
+   - 21% of deliveries were classified as high-risk.
+
+4. **Geographic Distribution**:
+   - Major service areas included zip codes 93905 (32.3%), 93906 (21.2%), and 93927 (18.1%).
+   - A map was used to visualize the distribution of deliveries by zip code.
+
+5. **Outcomes and Variables**:
+   - Pre-term and high-risk status were significant variables affecting delivery outcomes.
+   - Intrapatral conditions (e.g., preeclampsia) and events (e.g., abnormal labor) were analyzed in relation to delivery outcomes.
+
+6. **Time Series Analysis**:
+   - Weekly delivery rates were plotted, showing variability over the 27-month period.
+   - An average of 2 deliveries occurred per day.
+
+7. **Descriptive Statistics**:
+   - Numeric summaries of variables such as age, gravidity, parity, baby’s birth weight, Apgar scores, gestational age in days, and time from admission to delivery were provided.
+
+#### Significant Variables and Analytics
+- The analysis identified key variables that influence OB outcomes, such as maternal age, gravidity, parity, birth weight, gestational age, and high-risk status.
+- Cluster analysis helped categorize deliveries into meaningful groups based on birth weight and gestational age.
+- High-risk OB status was associated with specific maternal conditions and delivery outcomes.
+- Geographic analysis using zip codes provided insights into the service areas and distribution of deliveries.
+
+#### Conclusion
+The analysis provides comprehensive insights into the delivery patterns and outcomes at NMC for CSVS prenatal patients. Key factors influencing outcomes have been identified, and the geographic distribution of patients has been mapped, aiding in targeted healthcare strategies.
+
+---
+
+
+Certainly! Here is an enhanced version of the meta summary that singles out the more frequently mentioned variables with statistically significant effects:
+
+---
+
+### Meta Summary
+
+#### Overview
+The OB data analysis covers deliveries at NMC for CSVS prenatal patients over a period of 27 months (December 2021 to March 2024), with a total of 1720 deliveries. The dataset includes 853 female, 845 male, and 22 unknown gender deliveries, with a 0.8% incidence of multiple gestations (twins). The cesarean section rate was 23.7%, with 51.4% being primary sections. The average monthly delivery rate was 64, with an average birth weight of 3300 grams. Maternal ages ranged from 13 to 44, with a median age of 27.
+
+#### Key Findings with Statistically Significant Variables
+
+1. **Maternal Age**:
+   - Significant impact on delivery outcomes, particularly with high-risk OB classification.
+   - Older maternal age (>35) associated with increased risk factors such as hypertension and preeclampsia.
+
+2. **Gravidity and Parity**:
+   - Gravidity (average 2.90) and parity (average 1.65) are crucial in determining delivery outcomes.
+   - Women with 1 or 2 previous deliveries constituted over half of the total deliveries, indicating significant patterns in delivery statistics.
+
+3. **Birth Weight and Gestational Age**:
+   - Birth weight (average 3300 grams) and gestational age (average 273 days) are key variables.
+   - Cluster analysis identified groups: Term, full (40.2%), Term, early (55.6%), and Pre-term (4.1%).
+   - Statistically significant differences in outcomes between pre-term and full-term deliveries.
+
+4. **High-Risk OB**:
+   - Defined by maternal age >35, hypertension, preeclampsia, diabetes, multiple gestations, and non-vertex presentations.
+   - 21% of deliveries classified as high-risk, significantly affecting delivery outcomes.
+
+5. **Geographic Distribution (Zip Code)**:
+   - Significant differences in delivery outcomes based on geographic location.
+   - Key zip codes: 93905 (32.3%), 93906 (21.2%), and 93927 (18.1%) showed distinct delivery patterns.
+
+6. **Intrapartal Conditions and Events**:
+   - Conditions like preeclampsia and events like abnormal labor significantly affect delivery outcomes.
+   - Analysis of these variables helps in understanding complications during delivery.
+
+7. **Apgar Scores**:
+   - Apgar scores at 1 minute (average 7.93) and 5 minutes (average 8.80) are indicative of neonatal health and significantly correlate with delivery outcomes.
+
+#### Significant Variables and Analytics
+- The analysis highlighted maternal age, gravidity, parity, birth weight, gestational age, high-risk status, and zip code as significant variables.
+- Cluster analysis provided a clear categorization based on birth weight and gestational age.
+- High-risk OB status and intrapartal conditions/events were identified as critical factors influencing delivery outcomes.
+
+#### Conclusion
+The analysis offers a comprehensive understanding of delivery patterns and outcomes at NMC for CSVS prenatal patients. Key statistically significant variables have been identified, providing valuable insights for targeted healthcare strategies.
+
+---
+
+T

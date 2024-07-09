@@ -1,0 +1,211 @@
+---
+title: "Time to Event Analysis with Interactive Shiny App"
+author: "Your Name"
+date: "2024-05-13"
+format: 
+  html: 
+    embed-resources: true
+editor: visual
+---
+
+```{r setup, include=FALSE}
+# Load necessary libraries
+library(shiny)
+library(survival)
+library(survminer)
+library(ggplot2)
+library(myRFunctions)  # Assuming this contains ggforest3
+library(nnet)  # for multinom()
+library(dplyr)
+library(stringr)
+library(quarto)
+library(tidyverse)
+library(dplyr)
+library(dtplyr)
+library(lubridate)
+library(anytime)
+library(janitor)
+library(readxl)
+library(readr)
+library(openxlsx)
+library(xlsx)
+library(DataExplorer)
+library(explore)
+library(XICOR)
+library(klaR)
+library(ggforestplot)
+library(forestplot)
+library(myRFunctions)
+library(randomForest)
+
+```
+
+Introduction This document provides an analysis of obstetric delivery data using both static and interactive elements. The interactive segment allows users to explore the data and model outputs dynamically.
+
+Static Analysis Here, we provide a static analysis of the data.
+
+```{r}
+ob_data_compact_qrto <- readRDS("ob_data_compact.RDS")
+ob_hghRsk_qrto <- readRDS("High Risk OB.RDS")
+dte_range_NMC_data <- range(ob_data_compact_qrto$adm_date)
+del_tm_dur_range <- round(range((ob_data_compact_qrto$gest_age_days)/7),1)
+age_range <- range(ob_data_compact_qrto$age)
+nbr_del_nmc <- nrow(ob_data_compact_qrto)
+prcnt_preterm <- round(sum(ob_data_compact_qrto$gest_age_days <259) / sum(ob_data_compact_qrto$gest_age_days >=140)*100,0)
+gest_age_range <- range(ob_data_compact_qrto$gest_age_days, na.rm = TRUE)
+prcnt_hghRsk <- round(sum(ob_hghRsk_qrto$hghRsk=="yes")/nrow(ob_hghRsk_qrto)*100,0)
+```
+
+
+
+
+
+```{r echo=FALSE} 
+# Load data 
+ob_data <- readRDS("Factorized OB DATA with Selected Variables.RDS")
+
+# Example static analysis
+
+summary(ob_data)
+
+# Additional static analysis can be added here
+
+# For example, distribution of age
+
+ggplot(ob_data, aes(x = age)) + geom_histogram(binwidth = 5) + labs(title = "Distribution of Age", x = "Age", y = "Count") 
+```
+
+Interactive Shiny App Below is an interactive Shiny app that allows you to explore the time-to-event analysis and multinomial logistic regression models.
+
+```{r}
+# Define UI
+ui <- fluidPage(
+    titlePanel("Time to Event Analysis"),
+    sidebarLayout(
+        sidebarPanel(
+            selectInput("predictor", "Choose Predictor:", choices = colnames(ob_data)),
+            selectInput("strataVar", "Choose Stratification Variable:", choices = c("None", colnames(ob_data))),
+            uiOutput("multinomOutcomeUI"),
+            uiOutput("multinomPredictorsUI"),
+            actionButton("updateModel", "Update Model")
+        ),
+        mainPanel(
+            tabsetPanel(
+                tabPanel("Survival Plot", plotOutput("survPlot")),
+                tabPanel("Cumulative Hazard Plot", plotOutput("cumHazPlot")),
+                tabPanel("Kaplan-Meier Plot", plotOutput("kmPlot")),
+                tabPanel("Hazard Ratios", plotOutput("hrPlot")),
+                tabPanel("Multinomial Coefficients", plotOutput("multiCoeffs")),
+                tabPanel("Variable Importance", plotOutput("varImportancePlot"))  # New tab for variable importance
+            )
+        )
+    )
+)
+
+# Define Server
+server <- function(input, output, session) {
+    # Dynamic UI for selecting multinomial outcome
+    output$multinomOutcomeUI <- renderUI({
+        selectInput("multinomOutcome", "Choose Outcome for Multinomial Logistic Regression:", 
+                    choices = c("adm_to_del_tm", "intrapartal_events"))
+    })
+    
+    # Dynamic UI for selecting multinomial predictors
+    output$multinomPredictorsUI <- renderUI({
+        # Limiting the number of choices for better usability
+        checkboxGroupInput("multinomPredictors", "Choose Predictors for Multinomial Logistic Regression:", 
+                           choices = colnames(ob_data), selected = colnames(ob_data)[1:5])
+    })
+    
+    fitModel <- eventReactive(input$updateModel, {
+        strata_part <- if(input$strataVar != "None") paste("+ strata(", input$strataVar, ")", sep="") else ""
+        formula <- as.formula(paste("Surv(adm_to_del_tm, event) ~", input$predictor, strata_part))
+        model <- coxph(formula, data = ob_data)
+        print(summary(model))  # Debugging model output
+        return(model)
+    })
+    
+    fitMultinom <- eventReactive(input$updateModel, {
+        predictors <- paste(input$multinomPredictors, collapse = " + ")
+        formula <- as.formula(paste(input$multinomOutcome, "~", predictors))
+        multinom_model <- multinom(formula, data = ob_data)
+        print(summary(multinom_model))  # Debugging model output
+        return(multinom_model)
+    })
+    
+    output$survPlot <- renderPlot({
+        fit <- fitModel()
+        surv_fit <- survfit(fit)
+        plot(surv_fit, fun = "event", col = 1:3, main = "Survival Probability",
+             xlab = "Time", ylab = "Delivery-as-Event Probability", mark.time = TRUE)
+        if (input$strataVar != "None") {
+            legend("bottomright", legend = levels(ob_data[[input$strataVar]]), col = 1:3, lty = 1)
+        }
+    })
+    
+    output$cumHazPlot <- renderPlot({
+        fit <- fitModel()
+        surv_fit <- survfit(fit)
+        plot(surv_fit, fun = "cumhaz", col = 1:3, main = "Cumulative Hazard",
+             xlab = "Time", ylab = "Cumulative Hazard of Delivery_as_Event", mark.time = TRUE)
+        if (input$strataVar != "None") {
+            legend("topleft", legend = levels(ob_data[[input$strataVar]]), col = 1:3, lty = 1)
+        }
+    })
+    
+    output$kmPlot <- renderPlot({
+        fit <- fitModel()
+        ggsurvplot(survfit(fit), data = ob_data, conf.int = FALSE, risk.table = TRUE, fun = "event")
+    })
+    
+    output$hrPlot <- renderPlot({
+        fit <- fitModel()
+        ggforest3(fit, data = ob_data)
+    })
+    
+    output$multiCoeffs <- renderPlot({
+        fit <- fitMultinom()
+        if (is.null(fit)) {
+            print("Model fitting failed.")  # Debugging statement
+            return()
+        }
+        coef_df <- tidyMultinom(fit)
+        ggplot(coef_df, aes(x = Predictor, y = Coefficient, fill = Category)) +
+            geom_bar(stat = "identity", position = position_dodge()) +
+            theme_minimal() +
+            labs(title = "Multinomial Logistic Regression Coefficients",
+                 y = "Coefficient Value", x = "") +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    })
+    
+    output$varImportancePlot <- renderPlot({
+        # Placeholder for variable importance plot
+        fit <- fitModel()
+        importance <- varImp(fit, scale = FALSE)
+        ggplot(importance, aes(x = reorder(Overall, Overall), y = Overall)) +
+            geom_bar(stat = "identity") +
+            coord_flip() +
+            labs(title = "Variable Importance", x = "Predictors", y = "Importance")
+    })
+}
+
+# Run the Shiny application
+shinyApp(ui = ui, server = server)
+
+```
+
+
+### Explanation of Changes:
+1. **Dynamic UI for Multinomial Outcome**:
+    - Added a `selectInput` for choosing the outcome variable for the multinomial logistic regression.
+
+2. **Dynamic UI for Predictors**:
+    - Used a `checkboxGroupInput` with a limited initial selection to improve usability.
+
+3. **New Tab for Variable Importance**:
+    - Added a new tab and placeholder code for variable importance plots.
+
+### Running the Document:
+To render the document, you can use the following command in the terminal or RStudio:
+```sh
+quarto render index.qmd

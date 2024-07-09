@@ -1,0 +1,286 @@
+---
+title: "OB CARE at CSVS"
+author: "Nkwocha"
+format:
+  pptx:
+    reference-doc: Template_CSVS_Presentations.pptx
+    editor: visual
+    widescreen: TRUE
+---
+
+```{r}
+#https://stackoverflow.com/questions/77989127/in-quarto-how-can-i-show-inline-r-code-that-is-part-of-a-yaml-header
+#https://quarto.org/docs/presentations/
+
+library(tidyverse)
+library(dplyr)
+library(dtplyr)
+library(lubridate)
+library(anytime)
+library(janitor)
+library(ggplot2)
+library(readxl)
+library(readr)
+library(openxlsx)
+library(xlsx)
+library(DataExplorer)
+library(explore)
+library(kableExtra)
+
+ob_data_pptx <- readRDS("Compact OB Data without NAs and with only Relevant Variables.RDS")
+
+date_range <- range(ob_data_pptx$episode_indicator_date_dt, na.rm = TRUE)
+
+from_date <- min(ob_data_pptx$episode_indicator_date_dt, na.rm = TRUE)
+end_date <- max(ob_data_pptx$episode_indicator_date_dt, na.rm = TRUE)
+
+deliveries <- nrow(ob_data_pptx)
+
+gest_age_gt_259 <- nrow(ob_data_pptx %>% filter(gest_age >=259))
+preterm_prcnt <- 100-round(gest_age_gt_259/deliveries*100, 1)
+
+bw_gt_3000 <- nrow(ob_data_pptx %>% filter(birth_wt>=3000))
+sga_prcnt <- 100-round(bw_gt_3000/deliveries*100, 1)
+
+age_range <- range(ob_data_pptx$age, na.rm = TRUE)
+
+moments.ds <- readRDS("Moments Data.RDS") %>% 
+  select(Median, Mean, SD) %>% 
+  round(., 2)
+rownames(moments.ds)[rownames(moments.ds) == "delivery_birthweight_num2"] <- "birth_weight"
+moments_pptx <- print(moments.ds, digits = 2)
+
+```
+
+## OB Data
+
+-   Emphasis on *Delivered / Completed Pregnancy*
+-   Focus on *Birth Weight*
+-   Limited to *Gestational Age \> 20 weeks*
+-   Period: `` `r from_date` `` to `` `r end_date` ``
+-   No of deliveries: `` `r deliveries` ``
+-   Preterm: `` `r preterm_prcnt` ``%
+-   SGA: `` `r sga_prcnt` ``%
+-   Age range: `` `r age_range[1]` `` to `` `r age_range[2]` ``
+-   Data source: NextGen, NMC OB Log report & Azara
+
+# Exploratory Data Analysis
+
+
+
+```{r}
+library(kableExtra)
+
+# Assuming ob_data_pptx is your dataset
+columns <- ob_data_pptx %>% 
+  select(birth_wt, age, gest_age, city, zip, initial_trimester, uds_age) %>%
+  head(., 10)
+
+# Create the kable object and automatically save it as an HTML file
+columns %>%
+  kable("html", escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = TRUE) %>%
+  save_kable(file = "kable_table.html")
+```
+
+## Raw Data Structure
+
+[View Table](http://localhost:3333/kable_table.html)
+
+## Stats
+
+```{r}
+moments_pptx
+
+# First, we need to reshape your data into a long format suitable for ggplot2
+mdl.moments_long_pptx <- readRDS("Moments.RDS") %>% 
+    select(-gestational_days) %>% 
+    tidyr::pivot_longer(., cols = everything())
+
+# Now create the plot
+ggplot(mdl.moments_long_pptx, aes(x = value)) + 
+    geom_histogram(bins = 30, fill = "blue", color = "black", alpha = 0.7) +  # Histogram for distribution
+    facet_wrap(~ name, scales = "free") +  # Faceting by variable name
+    labs(title = "Distribution of Numeric Variables",
+         x = "Value",
+         y = "Frequency") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Improve x-axis label readability
+
+```
+
+
+```{r}
+# Creating a long format for faceting by variable
+ob_data_long <- ob_data_pptx %>%
+  select(birth_wt, age, gest_age) %>%
+  mutate(gest_age = floor(gest_age / 7)) %>% 
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value")
+
+# Plotting faceted histograms
+ggplot(ob_data_long, aes(x = value)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  facet_wrap(~variable, scales = "free_x") + 
+  theme_minimal() +
+  labs(x = NULL, y = "Frequency", title = "Distributions of Age, Birth Weight and Gestational Age") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#ggsave("faceted_histograms.png", width = 10, height = 8)
+
+
+```
+
+
+```{r}
+mdl.ds.map.joined <- readRDS("OB Data for Leaflet Map.RDS")
+# Check the structure of the joined data to confirm it retains its sf properties
+#str(mdl.ds.map.joined)
+
+library(leaflet)
+library(sf)
+library(RColorBrewer)
+library(htmlwidgets)
+
+# Assuming mdl.ds.map.joined is your sf object prepared earlier
+
+# Create a color palette function for dynamic coloring based on 'count'
+colorPalette <- colorQuantile(palette = "YlOrRd", domain = mdl.ds.map.joined$count, n = 5)
+
+p_ob_map <- leaflet(data = mdl.ds.map.joined) %>%
+    addTiles() %>%
+    addPolygons(fillColor = ~colorPalette(count),
+                color = "#BDBDC3",
+                fillOpacity = 0.7,
+                weight = 1,
+                opacity = 1,
+                highlight = highlightOptions(weight = 3,
+                                             color = "#666",
+                                             fillOpacity = 0.7,
+                                             bringToFront = TRUE),
+                label = ~paste("ZIP Code:", ZCTA5CE20, "<br/>Count:", count),
+                labelOptions = labelOptions(direction = 'auto', noHide = F, textOnly = TRUE)) %>%
+    addLegend(pal = colorPalette, values = ~count, opacity = 0.7, title = "Count",
+              position = "bottomright") %>%
+    setView(lng = -121.895, lat = 36.674, zoom = 9)  # Adjust the center and zoom level as needed
+
+#p_ob_map
+
+# Save the map as an HTML file
+saveWidget(p_ob_map, file="Ob data map.html")
+
+
+
+```
+
+
+
+
+## MAP
+
+[View Map](http://localhost:3333/Ob%20data%20map.html)
+
+
+# Analyses
+
+## Cluster Analysis
+
+```{r}
+mdl_clustering <- readRDS("Model Data for Clustering.RDS")
+p_clust1 <- ggplot(mdl_clustering, aes(x = gest_age, y = birth_wt, color = cluster)) +
+    geom_point(alpha = 0.6) +  # Plot points with cluster-based coloring
+    theme_minimal() +
+    scale_x_continuous(
+        name = "Gestational Age in Weeks",  # Rename the x-axis to "Weeks"
+        breaks = seq(0, max(mdl_clustering$gest_age), by = 7),  # Set breaks every 7 days
+        labels = function(x) floor(x / 7)  # Convert days to floor weeks
+    ) +
+    labs(title = "Age vs. Delivery Birthweight by Cluster",
+         x = "Gestational Days",
+         y = "Delivery Birthweight") +
+    scale_color_discrete(name = "Cluster")  # Add legend for clusters
+
+p_clust1
+```
+
+### Cluster by Birthweight
+
+```{r}
+mdl_clustering <- readRDS("Model Data for Clustering.RDS")
+
+p_clust2 <- ggplot(mdl_clustering, aes(x = gest_age, y = birth_wt, color = cluster)) +
+    geom_point(alpha = 0.5) +
+    geom_hline(yintercept = c(3000), linetype = "dashed", color = "red") +
+    #geom_vline(xintercept = 259, linetype = "dashed", color = "blue") +
+    theme_minimal() +
+    scale_x_continuous(
+        name = "Gestational Age in completed Weeks",  # Rename the x-axis to "Weeks"
+        breaks = seq(0, max(mdl_clustering$gest_age), by = 7),  # Set breaks every 7 days
+        labels = function(x) floor(x / 7)  # Convert days to floor weeks
+    ) +
+    labs(title = "Cluster Analysis on Gestational Age and Birth Weights",
+         x = "Gestational Age", y = "Delivery Birthweight")
+
+p_clust2
+```
+
+### Cluster by Gestational Age
+
+```{r}
+mdl_clustering <- readRDS("Model Data for Clustering.RDS")
+
+p_clust3 <- ggplot(mdl_clustering, aes(x = gest_age, y = birth_wt, color = cluster)) +
+    geom_point(alpha = 0.5) +
+    #geom_hline(yintercept = c(3000), linetype = "dashed", color = "red") +
+    geom_vline(xintercept = 259, linetype = "dashed", color = "blue") +
+    theme_minimal() +
+    scale_x_continuous(
+        name = "Gestational Age in completed Weeks",  # Rename the x-axis to "Weeks"
+        breaks = seq(0, max(mdl_clustering$gest_age), by = 7),  # Set breaks every 7 days
+        labels = function(x) floor(x / 7)  # Convert days to floor weeks
+    ) +
+    labs(title = "Cluster Analysis on Gestational Age and Birth Weights",
+         x = "Gestational Age", y = "Delivery Birthweight")
+
+p_clust3
+
+```
+
+### Cluster by Quadrant
+
+```{r}
+mdl_clustering <- readRDS("Model Data for Clustering.RDS")
+
+p_clust4 <- ggplot(mdl_clustering, aes(x = gest_age, y = birth_wt, color = cluster)) +
+    geom_point(alpha = 0.5) +
+    geom_hline(yintercept = c(3000), linetype = "dashed", color = "red") +
+    geom_vline(xintercept = 259, linetype = "dashed", color = "blue") +
+    theme_minimal() +
+    scale_x_continuous(
+        name = "Gestational Age in completed Weeks",  # Rename the x-axis to "Weeks"
+        breaks = seq(0, max(mdl_clustering$gest_age), by = 7),  # Set breaks every 7 days
+        labels = function(x) floor(x / 7)  # Convert days to floor weeks
+    ) +
+    labs(title = "Cluster Analysis on Gestational Age and Birth Weights",
+         x = "Gestational Age", y = "Delivery Birthweight")
+
+p_clust4
+
+```
+
+## Correlations
+
+```{r}
+xi_cor_df <- readRDS("XiCor data.RDS")
+#Plot
+library(ggplot2)
+
+# Assuming xi_cor_df is structured with 'Variable' and 'V1' columns, where 'V1' holds the xicor values
+p_xcor <- ggplot(xi_cor_df, aes(x = reorder(Variable, V1), y = V1, fill = V1)) +
+    geom_bar(stat = "identity") +
+    coord_flip() +  # Flips the axes for better readability of variable names
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+    labs(x = "Variable", y = "Xi Correlation Coefficient", title = "Xi Correlation with Delivery Birth Weight") +
+    theme_minimal()
+
+p_xcor
+```

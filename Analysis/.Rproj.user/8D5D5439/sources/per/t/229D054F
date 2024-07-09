@@ -1,0 +1,27 @@
+{
+    "id": "229D054F",
+    "path": "C:/Users/onkwocha/Dropbox/CSVS/OB Service/Analysis/raw.dta_21.R",
+    "project_path": "raw.dta_21.R",
+    "type": "r_source",
+    "hash": "4265148448",
+    "contents": "",
+    "dirty": false,
+    "created": 1713417185377.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "docOutlineVisible": "1",
+        "cursorPosition": "179,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1713736964,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1713736964364,
+    "read_only": false,
+    "read_only_alternatives": []
+}

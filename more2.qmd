@@ -1,0 +1,95 @@
+---
+title: "OB DATA Analytics"
+author: 'Oguchi Nkwocha, MD., MS'
+format: html
+server: shiny
+---
+
+```{r setup, include=FALSE}
+library(shiny)
+library(dplyr)
+library(DT)
+library(ggplot2)
+library(broom)
+
+# Load your dataset and prepare the data
+ob_data_clst_xi <- readRDS("Complete Ready OB Dataset for Analytics.RDS") %>%
+  dplyr::select(zip, age, grav, para, diff_grav_para, lbr_type_cnsldt, membrane_rupture, intrapartal_conditions, 
+                presentation_cnsldt, conditions_cnsldt, uds_age, adm_to_del_tm_cat, hghRsk, cluster) %>%
+  mutate(cluster = if_else(cluster == 2, 1, 0))
+
+```
+
+```{r}
+#| context: server
+#function(input, output, session) {
+
+  # Define UI for selecting factor variables
+  output$selectInputUI <- renderUI({
+    selectInput("selectedFactor", "Select Factor Variable:", choices = names(ob_data_clst_xi)[sapply(ob_data_clst_xi, is.factor)])
+  })
+
+  # Define table output for factor mappings
+  output$factorTable <- DT::renderDT({
+    req(input$selectedFactor)
+    
+    # Convert factor columns to numeric for modeling
+    local_data <- ob_data_clst_xi %>%
+      mutate(across(where(is.factor), ~ as.numeric(as.factor(.))))
+    
+    # Function to get the mapping of original to numeric values
+    get_numeric_mapping <- function(df, column) {
+      factor_column <- as.factor(df[[column]])
+      levels_mapping <- levels(factor_column)
+      numeric_values <- as.numeric(factor_column)
+      mapping <- data.frame(Original = levels_mapping, Numeric = seq_along(levels_mapping), Variable = column)
+      return(mapping)
+    }
+    
+    # Apply the function to all factor variables and create a list of mappings
+    mappings <- lapply(names(local_data)[sapply(local_data, is.factor)], function(col) get_numeric_mapping(local_data, col))
+    
+    # Remove NULL elements from the list and combine all mappings into a single data frame
+    combined_mapping_df <- do.call(rbind, Filter(Negate(is.null), mappings))
+    
+    var <- input$selectedFactor
+    selected_mapping <- combined_mapping_df %>% dplyr::filter(Variable == var)
+    DT::datatable(selected_mapping)
+  })
+  
+  # Define plot output for logistic regression coefficients
+  output$coefPlot <- renderPlot({
+    model <- glm(cluster ~ ., data = ob_data_clst_xi, family = binomial)
+    model_tidy <- broom::tidy(model)
+    ggplot(model_tidy, aes(x = reorder(term, estimate), y = estimate)) +
+      geom_point() +
+      geom_errorbar(aes(ymin = estimate - std.error, ymax = estimate + std.error)) +
+      coord_flip() +
+      theme_minimal() +
+      labs(title = "Logistic Regression Coefficients",
+           x = "Predictor Variables",
+           y = "Coefficient Estimate")
+  })
+#}
+
+```
+
+```{r}
+fluidPage(
+  titlePanel("OB DATA Analytics"),
+  sidebarLayout(
+    sidebarPanel(
+      uiOutput("selectInputUI")  # Dynamic UI for factor variable selection
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Factor Levels", DTOutput("factorTable")),
+        tabPanel("Logistic Regression", plotOutput("coefPlot"))
+      )
+    )
+  )
+)
+
+
+```
+

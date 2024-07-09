@@ -1,0 +1,17 @@
+# Assume you have a dataframe with three columns
+data <- data.frame(
+    LongColumnNameThatNeedsBreaking = 1:5,
+    ShortName1 = letters[1:5],
+    ShortName2 = 6:10
+)
+
+# Modify only the long column name
+names(data)[1] <- "Long Column Name\nThat Needs Breaking"
+
+# Check the new column names
+print(names(data))
+
+# Using kable to create a table
+library(knitr)
+kable(data)
+tabulate(data)

@@ -1,0 +1,24 @@
+ob_preg_without_delivery <- ob_data_filtered%>%
+  mutate(preg_without_delivery = grav - para.xtr) %>% 
+  group_by(zip) %>% 
+  summarise(preg_gap = sum(preg_without_delivery))
+
+
+gap_df <- as.data.frame(ob_data_preg_without_delivery$preg_without_delivery)
+
+
+
+ob_preg_without_delivery <- ob_data_filtered %>%
+  mutate(preg_without_delivery = grav - para.xtr) %>%
+  group_by(zip, age_group) %>%
+  summarise(preg_gap = sum(preg_without_delivery, na.rm = TRUE)) %>%
+  ungroup()
+
+
+gap_df <- ob_data_preg_without_delivery %>%
+  group_by(zip, age_group) %>%
+  summarise(total_pregnancies = sum(grav),
+            total_deliveries = sum(para.xtr),
+            total_preg_without_delivery = sum(preg_without_delivery))
+
+gap_zip <- tableone::CreateTableOne(data=gap_df,strata ="age_group", vars = "zip")

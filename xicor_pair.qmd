@@ -1,0 +1,75 @@
+---
+title: "Interactive Xi Correlation Analysis"
+format: html
+server: shiny
+---
+
+```{r setup, include=FALSE}
+library(shiny)
+library(XICOR)
+library(dplyr)
+library(ggplot2)
+library(DT)
+
+# Assuming the dataset is loaded here
+ob_data_clst_xi <- readRDS("Complete Ready OB Dataset for Analytics.RDS") %>%
+  dplyr::select(zip, lbr_type_cnsldt, membrane_rupture, intrapartal_conditions,
+                presentation_cnsldt, conditions_cnsldt, uds_age, adm_to_del_tm_cat, hghRsk, cluster,
+                age, grav, para, diff_grav_para) %>%
+  mutate(across(c(zip, lbr_type_cnsldt, membrane_rupture, intrapartal_conditions,
+                  presentation_cnsldt, conditions_cnsldt, uds_age, adm_to_del_tm_cat, hghRsk, cluster), as.factor)) %>%
+  mutate(across(c(zip, lbr_type_cnsldt, membrane_rupture, intrapartal_conditions,
+                  presentation_cnsldt, conditions_cnsldt, uds_age, adm_to_del_tm_cat, hghRsk, cluster), as.numeric))
+```
+
+
+```{r}
+#| context: server
+output$xiCorPlot <- renderPlot({
+  req(input$var1, input$var2)
+  if (input$var1 != input$var2) {
+    xi_value <- xicor(ob_data_clst_xi[[input$var1]], ob_data_clst_xi[[input$var2]])
+    xi_data <- data.frame(Variable1 = input$var1, Variable2 = input$var2, Xi = xi_value)
+    
+    ggplot(xi_data, aes(x = Variable1, y = Xi, fill = Variable2)) +
+      geom_col() +
+      labs(title = paste("Xi Correlation between", input$var1, "and", input$var2),
+           x = "Variable Pair", y = "Xi Correlation") +
+      theme_minimal()
+  } else {
+    ggplot() + labs(title = "Please select two different variables")
+  }
+})
+
+output$xiCorTable <- DT::renderDT({
+  req(input$var1, input$var2)
+  if (input$var1 != input$var2) {
+    xi_value <- xicor(ob_data_clst_xi[[input$var1]], ob_data_clst_xi[[input$var2]])
+    datatable(data.frame(Variable1 = input$var1, Variable2 = input$var2, Xi = xi_value), options = list(pageLength = 5, scrollX = TRUE))
+  } else {
+    datatable(data.frame(Message = "Select different variables"), options = list(pageLength = 5, scrollX = TRUE))
+  }
+})
+
+```
+
+```{r}
+# Define the UI layout
+fluidPage(
+  titlePanel("Interactive Xi Correlation Analysis"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("var1", "Select the first variable:", choices = names(ob_data_clst_xi)),
+      selectInput("var2", "Select the second variable:", choices = names(ob_data_clst_xi))
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Xi Correlation Plot", plotOutput("xiCorPlot")),
+        tabPanel("Xi Correlation Table", DTOutput("xiCorTable"))
+      )
+    )
+  )
+)
+
+```
+

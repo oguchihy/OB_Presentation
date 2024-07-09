@@ -1,0 +1,392 @@
+---
+title: "Obstetric Delivery Data Analysis"
+format: html
+---
+
+#Quarto Setup for Analyzing the Base Dataset with GAMs and High Risk Subset with GBM
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(quarto)
+#source("Ob_dta_reg7.R", local = FALSE)
+library(tidyverse)
+library(dplyr)
+library(dtplyr)
+library(lubridate)
+library(anytime)
+library(janitor)
+library(ggplot2)
+library(readxl)
+library(readr)
+library(openxlsx)
+library(xlsx)
+library(DataExplorer)
+library(explore)
+library(XICOR)
+library(survival)
+library(survminer)
+library(klaR)
+library(ggforestplot)
+library(forestplot)
+library(myRFunctions)
+
+
+```
+
+# CSVS OB DATA Analytics
+
+```{r echo = FALSE}
+ob_data_compact_qrto <- readRDS("ob_data_compact.RDS")
+ob_hghRsk_qrto <- readRDS("High Risk OB.RDS")
+dte_range_NMC_data <- range(ob_data_compact_qrto$adm_date)
+del_tm_dur_range <- round(range((ob_data_compact_qrto$gest_age_days)/7),1)
+age_range <- range(ob_data_compact_qrto$age)
+nbr_del_nmc <- nrow(ob_data_compact_qrto)
+prcnt_preterm <- round(sum(ob_data_compact_qrto$gest_age_days <259) / sum(ob_data_compact_qrto$gest_age_days >=140)*100,0)
+gest_age_range <- range(ob_data_compact_qrto$gest_age_days, na.rm = TRUE)
+prcnt_hghRsk <- round(sum(ob_hghRsk_qrto$hghRsk=="yes")/nrow(ob_hghRsk_qrto)*100,0)
+```
+
+## Generalized Additive Models for Base Dataset
+
+We start by analyzing the base dataset using Generalized Additive Models (GAMs) to explore the effects of continuous variables like age, gestational days, and weight on outcomes such as conditions consolidated.
+
+```{r gam-analysis, echo=FALSE, eval=FALSE}
+library(mgcv)
+
+# Assuming 'conditions_cnsldt' is the outcome. Adjust the model as per your actual outcome variable.
+gam_model <- gam(conditions_cnsldt ~ s(age) + s(gest_age_days) + s(weight), family = binomial(), data = ob_data_compact_qrto)
+summary(gam_model)
+
+# Plot the smooth effects
+plot(gam_model, pages = 3)  # Adjust pages parameter as needed
+
+```
+##
+Random Forest Analysis for Base Dataset
+Next, we use Random Forest to understand the importance of variables in predicting outcomes
+
+```{r randomforest, echo=FALSE, eval=FALSE}
+library(randomForest)
+
+# Fit Random Forest model
+rf_model <- randomForest(conditions_cnsldt ~ ., data = ob_data_compact_qrto, importance = TRUE, ntree = 500)
+print(rf_model)
+
+# Get variable importance
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+##Gradient Boosting Machine for High-Risk Subset
+```{r gbm, echo=FALSE}
+library(gbm)
+ob_hghRsk_qrto$gender <- as.factor(ob_hghRsk_qrto$gender)
+ob_hghRsk_qrto$lbr_type_cnsldt <- as.factor(ob_hghRsk_qrto$lbr_type_cnsldt)
+ob_hghRsk_qrto$presentation_cnsldt <- as.factor(ob_hghRsk_qrto$presentation_cnsldt)
+
+# Convert outcome variables to factors if they are not already
+ob_hghRsk_qrto$conditions_cnsldt <- as.factor(ob_hghRsk_qrto$conditions_cnsldt)
+ob_hghRsk_qrto$intrapartal_events <- as.factor(ob_hghRsk_qrto$intrapartal_events)
+ob_hghRsk_qrto$gender <- as.factor(ob_hghRsk_qrto$gender)
+# Assuming 'ob_hghRsk_qrto$conditions_cnsldt' is the variable of interest
+# You'll need to decide which condition is "1" and the rest "0"
+# For example, let's say we are interested in 'Preeclampsia' as the condition of interest
+ob_hghRsk_qrto$binary_conditions = ifelse(ob_hghRsk_qrto$conditions_cnsldt == "Preeclampsia", 1, 0)
+
+# Now fit the GBM model using the binary outcome
+gbm_model <- gbm(binary_conditions ~ age + gest_age_days + weight + gender + diff_grav_para + lbr_type_cnsldt + presentation_cnsldt, 
+                 data = ob_hghRsk_qrto, 
+                 distribution = "bernoulli", 
+                 n.trees = 5000, 
+                 interaction.depth = 3, 
+                 shrinkage = 0.01, 
+                 cv.folds = 5)
+summary(gbm_model)
+
+# Storing the summary output to extract variable importance
+# Assuming 'var_importance' is obtained from summary.gbm(gbm_model)
+var_importance <- summary(gbm_model, n.trees = 5000)  # Ensure to use the correct number of trees
+
+
+
+
+```
+
+# Example for logistic regression in R
+```{r glmnet, echo=FALSE, eval=FALSE}
+library(glmnet)
+model_conditions <- glm(conditions_cnsldt ~ age + gest_age_days + weight + gender + diff_grav_para + lbr_type_cnsldt + presentation_cnsldt, family = "binomial", data = ob_data_compact_qrto)
+model_events <- glm(intrapartal_events ~ age + gest_age_days + weight + gender + diff_grav_para + lbr_type_cnsldt + presentation_cnsldt, family = "binomial", data = ob_data_compact_qrto)
+
+summary(model_conditions)
+summary(model_events)
+
+plot(model_conditions)
+plot(model_events)
+```
+
+# Example for decision trees in R
+```{r rpart, echo=FALSE, eval=FALSE}
+
+# Adjusting the complexity parameter might help
+tree_model <- rpart(conditions_cnsldt ~ age + gest_age_days + weight + gender + diff_grav_para + lbr_type_cnsldt + presentation_cnsldt, method="class", data=ob_data_compact_qrto, control=rpart.control(minsplit=10, cp=0.001))
+
+# Plotting the tree
+plot(tree_model)
+text(tree_model)
+
+# Install and load the rpart.plot package
+if (!require(rpart.plot)) install.packages("rpart.plot")
+library(rpart.plot)
+
+# Plot the tree
+rpart.plot(tree_model, type = 3, box.palette = "RdYlGn", shadow.col = "gray", 
+           main = "Decision Tree Model", 
+           extra = 102)  # 102 shows split labels, node probabilities, and n, adjust as needed
+
+
+# Install and load the partykit package
+if (!require(partykit)) install.packages("partykit")
+library(partykit)
+
+# Convert rpart model to party object
+party_tree <- as.party(tree_model)
+
+# Plot using partykit
+plot(party_tree, tp_args = list(box_palette = "RdYlGn"), main = "Enhanced Decision Tree")
+
+
+# Calculate feature importance from the rpart model
+importance <- as.data.frame(rpart::importance(tree_model))
+
+# Plot feature importance using ggplot2
+library(ggplot2)
+ggplot(importance, aes(x = reorder(row.names(importance), V1), y = V1)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip coordinates to make it horizontal
+  labs(x = "Features", y = "Importance", title = "Feature Importance from Decision Tree") +
+  theme_minimal()
+
+# Assuming 'tree_model' is your rpart model and 'age' is a feature of interest
+library(pdp)
+pdp_age <- partial(tree_model, pred.var = "age", plot = TRUE, plot.engine = "ggplot")
+
+###
+
+# Load necessary libraries
+library(caret)
+library(rpart)
+
+# Set up training control
+train_control <- trainControl(method = "cv", number = 10, savePredictions = "final")
+
+# Train the model
+model <- train(conditions_cnsldt ~ age + gest_age_days + weight + gender + diff_grav_para + lbr_type_cnsldt + presentation_cnsldt,
+               data = ob_hghRsk_qrto, 
+               method = "rpart",
+               trControl = train_control)
+
+# Extract model importance
+importance <- varImp(model, scale = TRUE)
+print(importance)
+
+# Plot variable importance
+plot(importance, main = "Variable Importance Plot")
+
+```
+
+#Multinom
+
+```{r}
+# Load the necessary library
+library(nnet)
+
+# Fit the multinomial logistic regression model
+# Ensure your R session has ob_hghRsk_qrto loaded and contains the used variables
+multinom_model <- multinom(conditions_cnsldt ~ age + weight + gest_age_days + diff_grav_para, data = ob_hghRsk_qrto)
+
+# Summary of the model to check coefficients and model performance
+#summary(multinom_model)
+
+# Check structure and factor levels
+#str(ob_hghRsk_qrto)
+#summary(ob_hghRsk_qrto)
+
+# Summary of the model
+#summary(multinom_model)
+
+# Coefficients of the model
+coef(summary(multinom_model))
+
+
+library(ggplot2)
+library(broom)
+
+# Obtain a tidy dataframe of the model's coefficients
+tidy_model <- tidy(multinom_model)
+
+library(ggplot2)
+
+# Coefficient plot with the corrected faceting variable
+ggplot(tidy_model, aes(x = term, y = estimate, fill = p.value < 0.05)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    facet_wrap(~ y.level, scales = "free") +
+    labs(title = "Coefficient plot of Multinomial Logistic Regression",
+         x = "Predictors",
+         y = "Coefficient Estimate") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+##different visualizations / faceting
+
+library(ggplot2)
+# Assuming 'tidy_model' is your tidied model output
+p <- ggplot(tidy_model, aes(x = term, y = estimate, fill = estimate)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~ y.level, scales = "free_x") +  # Adjusted this line
+    theme_minimal() +
+    labs(title = "Multinomial Logistic Regression Coefficients",
+         x = "Predictor Variables", y = "Estimates") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(p)
+
+
+library(ggpubr)
+ggarrange(plotlist = list(p), labels = "AUTO")
+
+
+library(plotly)
+p <- ggplot(tidy_model, aes(x = term, y = estimate, color = estimate)) +
+    #geom_point() +
+    geom_bar(stat = "identity") +
+    facet_wrap(~ y.level)
+# Convert ggplot to plotly
+plotly::ggplotly(p)
+
+#Heatmap
+# Install Bioconductor installer if you haven't already
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+# Install ComplexHeatmap using BiocManager
+BiocManager::install("ComplexHeatmap")
+
+library(ComplexHeatmap)
+ht_opt$message = FALSE
+library(circlize)
+ht_opt$message = FALSE
+library(magic)
+ht_opt$message = FALSE
+# Assuming plot_data is properly prepared with rows as terms and columns as conditions
+Heatmap(as.matrix(tidy_model), 
+        name = "Estimate", 
+        column_title = "Predictor Importance", 
+        row_title = "Terms",
+        cluster_rows = FALSE,
+        cluster_columns = TRUE)
+
+#cowplot or patchwork
+
+# library(cowplot)
+# library(patchwork)
+# # Assume 'p1', 'p2' are different ggplot objects
+# p_combined <- p1 / p2
+# plot(p_combined)
+
+library(rayshader)
+tidy_model %>%
+    ggplot(aes(x = term, y = condition, fill = estimate)) +
+    geom_tile() -> p
+p %>% plot_gg(height = 2, width = 5, multicore = TRUE, scale = 250)
+
+
+library(ggplot2)
+
+# Plot showing estimates for each predictor across different conditions
+p <- ggplot(tidy_model, aes(x = term, y = estimate, fill = term)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    facet_wrap(~ y.level, scales = "free_y") +
+    theme_minimal() +
+    labs(title = "Coefficient Estimates by Term across Conditions",
+         x = "Predictor Term", y = "Coefficient Estimate") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(p)
+
+# Now, convert this plot into a 3D plot using rayshader
+library(rayshader)
+library(tidyr)
+library(dplyr)
+library(tibble)
+
+# Pivot data without converting to row names
+coeff_matrix_df <- tidy_model %>%
+    pivot_wider(names_from = y.level, values_from = estimate) %>%
+    select(-c(std.error, statistic, p.value))
+
+# Make row names unique by combining term with levels (if needed)
+coeff_matrix_df <- coeff_matrix_df %>%
+    mutate(unique_term = paste(term, names(coeff_matrix_df)[-1], sep = "_")) %>%
+    select(-term) %>%
+    column_to_rownames(var = "unique_term")
+
+# Convert to matrix
+coeff_matrix <- as.matrix(coeff_matrix_df)
+
+# Check the matrix
+print(coeff_matrix)
+
+library(ggplot2)
+library(rayshader)
+
+# Assuming coeff_matrix is now a proper matrix without duplicate row names
+library(ggplot2)
+
+library(ggplot2)
+
+# Assuming 'coeff_matrix' is your data prepared for plotting
+# and 'reshape2::melt()' has been applied successfully
+melted_data <- reshape2::melt(coeff_matrix)
+
+library(ggplot2)
+
+# Assuming 'melted_data' is your reshaped data ready for plotting
+tile_plot <- ggplot(melted_data, aes(y = Var1, x = Var2, fill = value)) +
+    geom_tile() +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+    theme_minimal() +
+    labs(title = "Visualization of Coefficients", x = "Value", y = "Predictor Term and Condition") +
+    theme(axis.text.x = element_text(angle = 45))  # Adjust x-axis text orientation as needed
+
+# Display the plot
+print(tile_plot)
+
+
+# Display the plot
+print(tile_plot)
+
+
+
+# Render with rayshader
+tile_plot %>%
+    plot_gg(height = 5, width = 5, scale = 250)
+
+
+
+```
+
+
+# PCA followed by clustering in R
+```{r pca, echo=FALSE}
+
+library(stats)
+pca_result <- prcomp(ob_data_compact_qrto[, c("age", "gest_age_days", "weight")], scale. = TRUE)
+scores <- as.data.frame(pca_result$x)
+kmeans_result <- kmeans(scores[, 1:2], centers=3)  # Using the first two principal components
+plot(scores[, 1:2], col=kmeans_result$cluster)  # Plot the clusters
+
+```
+
+
+#Conclusion
+In this document, we have explored the obstetric delivery data using various models to understand the effects of different variables and identify key predictors of outcomes. This analysis helps in targeting interventions and improving care practices.

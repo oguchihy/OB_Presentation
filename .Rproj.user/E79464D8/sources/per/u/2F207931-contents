@@ -1,0 +1,50 @@
+zip_df <- as.data.frame(print(zip, printToggle = FALSE))
+
+# Print the table to HTML
+kableExtra::kable(zip_df, format = "html", caption = "Deliveries by Zip Code", table.attr = "class='table' style='font-size: 14px; width: auto !important;'") %>%
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE, position = "center", font_size = 14)
+
+# ggplot horizontal bar plot
+zip_df_plt <- zip_df %>%
+  rownames_to_column(var = "zip") %>%
+  slice(-1:-2) %>%  # Remove the first two rows
+  separate(Overall, into = c("freq", "percent"), sep = "\\(") %>%
+  mutate(freq = as.numeric(trimws(freq)),
+         percent = as.numeric(gsub("[()%]", "", percent)))
+
+# Print the resulting data frame
+#print(zip_df_plt)
+
+
+library(ggplot2)
+
+# Create the bar plot
+p <- ggplot2::ggplot(zip_df_plt, aes(x = reorder(zip, freq), y = freq)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = paste0(freq, " (", round(freq / sum(freq) * 100, 1), "%)")), hjust = -0.1) +
+  coord_flip() +
+  labs(title = "Zip Code Frequency",
+       x = "Zip Code",
+       y = "Frequency") +
+  theme_minimal() +
+  expand_limits(y = max(zip_df_plt$freq) * 1.2)  # Adjust y-axis limit to provide space for labels
+
+# Print the plot
+print(p)
+
+# Save the plot with adjusted dimensions if needed
+ggsave("zip_code_frequency_plot.png", plot = p, width = 10, height = 6)
+
+
+
+strata_tbl_grav_zip <- CreateTableOne(data = ob_data_tbl_xtra, strata = "grav_fct", vars = "zip")
+
+grav_zip_plt <- as.data.frame(print(strata_tbl_grav_zip, cramVars = "grav_fct"))
+
+grav_zip_plt.hb <- grav_zip_plt %>%
+  rownames_to_column(var = "zip") %>%
+  slice(-1:-2) %>%  # Remove the first two rows
+  separate(., c(1:12), sep = "\\(") %>%
+  mutate(freq = as.numeric(trimws(freq)),
+         percent = as.numeric(gsub("[()%]", "", percent)))
+

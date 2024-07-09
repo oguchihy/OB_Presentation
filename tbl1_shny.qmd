@@ -1,0 +1,57 @@
+---
+title: "OB DATA Analytics"
+author: "Oguchi Nkwocha, MD., MS"
+format:
+  html:
+    page-layout: full
+    code-tools: true
+server: shiny
+---
+
+```{r setup, include=FALSE}
+# Load necessary libraries
+library(shiny)
+library(tableone)
+library(dplyr)
+
+# Load your data frame
+ob_data_tbl1_shny <- readRDS("All Factored Complete Ready OB Dataset for Analytics.RDS") %>% 
+  dplyr::select(-c(age, grav, para, weight, apg1, apg5, diff_grav_para, gest_age_days, adm_to_del_tm, gest_age, adm_date, delivery_date, event, time, baby_sq)) %>% 
+  dplyr::mutate(cluster = as.factor(if_else(cluster == 2, 1, 0)))
+```
+
+```{r}
+#| panel: sidebar
+selectInput("variable", "Select a Variable:", choices = names(ob_data_tbl1_shny))
+actionButton("update", "Update Table")
+
+```
+
+```{r}
+#| panel: fill
+tableOutput("table_one")
+
+```
+
+```{r}
+#| context: server
+
+# Reactive expression to get the selected variable
+selected_var <- reactive({
+  req(input$variable)
+  input$variable
+})
+
+# Reactive expression to generate the CreateTableOne object when the update button is clicked
+table_one_data <- eventReactive(input$update, {
+  CreateTableOne(data = ob_data_tbl1_shny, vars = selected_var())
+})
+
+# Render the table output
+output$table_one <- renderTable({
+  table_df <- as.data.frame(print(table_one_data(), printToggle = FALSE))
+  table_df
+}, rownames = TRUE)
+
+```
+
