@@ -1,0 +1,4 @@
+tst <- readRDS("All Factored Complete Ready OB Dataset for Analytics.RDS") %>% 
+  dplyr::select(-adm_date, -delivery_date) %>% 
+  mutate(cluster = if_else(gest_age_days <=259, 1, 0))
+table(tst$cluster)
