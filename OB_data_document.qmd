@@ -1,0 +1,329 @@
+---
+title: "OB DATA Analytics"
+author: "Oguchi Nkwocha, MD., MS"
+format: html
+server: shiny
+---
+
+To learn more about Quarto see <https://quarto.org>.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(readr)
+library(openxlsx)
+library(xlsx)
+library(DataExplorer)
+library(explore)
+library(XICOR)
+library(survival)
+library(survminer)
+library(klaR)
+library(ggforestplot)
+library(forestplot) 
+library(myRFunctions)
+library(mice)
+library(readxl)
+library(dplyr)
+library(purrr)
+library(stringr)
+library(randomForest)
+library(leaflet)
+library(sf)
+library(tableone)
+library(DT)
+
+
+```
+
+```{r echo = FALSE}
+ob_data_chr <- readRDS("Working OB Dataset.RDS")
+ob_data_fctr <- readRDS("All Factored Complete Ready OB Dataset for Analytics.RDS")
+```
+
+
+# CSVS OB DATA Analytics
+
+```{r echo = FALSE}
+ob_stats_block <- ob_data_chr
+
+dte_range_NMC_data <- range(ob_stats_block$adm_date)
+del_tm_dur_range <- round(range((ob_stats_block$gest_age_days)/7),1)
+age_range <- range(ob_stats_block$age)
+nbr_del_nmc <- nrow(ob_stats_block)
+prcnt_preterm <- round(sum(ob_stats_block$gest_age_days <259) / sum(ob_stats_block$gest_age_days >=140)*100,0)
+gest_age_range <- range(ob_stats_block$gest_age_days, na.rm = TRUE)
+prcnt_hghRsk <- round(sum(ob_stats_block$hghRsk=="yes")/nrow(ob_stats_block)*100,0)
+```
+
+Between `r dte_range_NMC_data[1]` and `r dte_range_NMC_data[2]`, ***`r nbr_del_nmc`*** CSVS prenatal patients delivered at NMC, which is the principal source of data for this analysis.
+
+The age range was between ***`r age_range[1]`*** and ***`r age_range[2]`***, with a ***median age of `r median(ob_stats_block$age)`***. (See Histogram below)
+
+```{r echo=FALSE, warning=FALSE}
+library(lattice)
+histogram(~ age, data = ob_data_chr, xlab = "Age")
+```
+
+Delivery Data at NMC is captured in their OB Delivered Log repository; this includes the following types of information:
+
+```{r echo=FALSE, warning=FALSE}
+library(knitr)
+column_names <- data.frame(Column_Names = names(ob_data_chr))
+column_names_trimmed <- column_names[1:(nrow(column_names) - 12), ]
+kable(column_names_trimmed, caption = "Data Fields")
+```
+
+For our analyses, we initially added these derived columns below:
+
+```{r echo=FALSE, warning=FALSE}
+derived_cols <- column_names[(nrow(column_names) - 9):nrow(column_names), ]
+kable(derived_cols, caption = "Derived Fields")
+```
+
+# Interactive table to explore the descriptive statistics for each variable in the dataset.
+
+```{r echo=FALSE, warning=FALSE, include=FALSE, render= FALSE}
+# Load necessary libraries
+library(shiny)
+library(DT)
+library(tableone)
+library(dplyr)
+
+# Load the data
+ob_data_tblone <- readRDS("Working OB Dataset.RDS") %>% 
+  select(-adm_date, -delivery_date)
+
+
+```
+
+
+```{r echo=FALSE, include=FALSE, render=FALSE}
+# Define the UI layout
+fluidPage(
+  titlePanel("Descriptive Statistics Interactive Table"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("variable", "Select Variable:", choices = colnames(ob_data_tblone), selected = colnames(ob_data_tblone)[1])
+    ),
+    mainPanel(
+      DTOutput("descTable")
+    )
+  )
+)
+```
+
+```{r echo = FALSE, include=FALSE, render=FALSE}
+# Define Server logic
+#| context: server
+output$descTable <- renderDT({
+  req(input$variable)
+  var <- input$variable
+  # Dynamically create TableOne object for the selected variable
+  table_one <- tableone::CreateTableOne(data = ob_data_tblone)
+  table_one_summary <- print(table_one, test = FALSE, quote = FALSE, noSpaces = TRUE)
+  datatable(as.data.frame(table_one_summary), options = list(pageLength = 10, scrollX = TRUE))
+})
+
+```
+
+
+
+
+
+
+
+### Definitions
+
+The goal of our data analytics is to understand how various factors affect pregnancy course and delivery in our patient population. We will use NMC data as above. Before we proceed, please be familiar with these definitions:
+
+(@) Event: **Delivery**
+
+There is an associated delivery date and delivery time that defines the event
+
+(@) Intervention: **Admission to the NMC**
+
+A date-time is associated with Intervention
+
+(@) Interval: **Duration** of time between Intervention and Event.
+
+(@) Time: any **slice** of, or **point** , in time (not Duration) within Interval
+
+(@) Survival: **"Survived" Event** at any given Time
+
+This means "survived" delivery, ie., delivery has not occurred at specified Time, or, *undelivered*.
+
+These definitions will facilitate the interpretation of our analyses when we use the popular analytic method called Survival Analysis (SA) or Time to Event (TTE) analysis.
+
+### Cluster Analysis 
+
+Right now, we are going to look into the important OB metrics of Gestational Age and Birth weight of our patients. We will use Cluster Analysis^[Cluster analysis is a statistical technique used to group sets of objects in such a way that objects in the same group are more similar to each other than to those in other groups. It is especially useful in medical research for identifying patterns among patients, aiding in understanding behaviors, disease progression, and treatment outcomes without predefined categories.], a useful method in medical research for identifying patterns among patients that help to characterize clinical states and associated risks and treatment outcomes without predefined categories.
+
+Using k-means clustering algorithm with a choice of 3 clusters (based on clinical relevance), we obtained these stats and plot.
+
+```{r echo=FALSE, warning=FALSE}
+#Cluster Analysis----
+
+#setwd(getwd())
+ob_clustering <- ob_data_fctr %>% 
+  dplyr::select(age, gest_age_days, weight)
+
+ob_clustering_scaled <- scale(ob_clustering)
+
+
+# Cluster Analysis
+set.seed(333)
+
+# Perform K-means clustering
+k <- 3
+kmeans_result <- kmeans(ob_clustering_scaled, centers = k, nstart = 25)
+ 
+# Add the cluster assignments to the original dataset
+#Remove current var cluster
+ob_data_fctr$cluster <- NULL
+ob_data_fctr$cluster <- as.factor(kmeans_result$cluster)
+ 
+# Map numeric cluster IDs to meaningful names
+cluster_names <- c("Term, full", "Term, early",   "Pre-term")
+names(cluster_names) <- 1:3
+ob_data_fctr$cluster <- factor(ob_data_fctr$cluster, levels = 1:3, labels = cluster_names)
+
+# Now, summarizing clusters with across
+cluster_summary <- ob_data_fctr %>%
+    group_by(cluster) %>%
+    summarise(
+        across(
+            .cols = c(gest_age_days, weight),
+            .fns = ~ round(mean(.), 0),
+            .names = "mean {.col}"
+        )
+    )
+
+kable(cluster_summary, caption = "Cluster Stats")
+
+
+# Plotting
+library(ggplot2)
+
+ggplot(ob_data_fctr, aes(x = gest_age_days, y = weight, color = cluster)) +
+    geom_point(alpha = 0.5) +
+    geom_hline(yintercept = 3000, linetype = "dashed", color = "red") +
+    geom_vline(xintercept = 259, linetype = "dashed", color = "blue") +
+    theme_minimal() +
+    scale_x_continuous(
+        name = "Gestational Age in completed Weeks",  # Rename the x-axis to "Weeks"
+        breaks = seq(0, max(ob_data_fctr$gest_age_days), by = 7),  # Set breaks every 7 days
+        labels = function(x) floor(x / 7)  # Convert days to floor weeks
+    ) +
+    labs(title = "Cluster Analysis on Gestational Age and Birth Weights",
+         x = "Gestational Age", y = "Delivery Birthweightin grams")
+
+
+
+```
+
+The plot shows the separation of a left lower quad (LLQ) cluster from an un-separated 2 other clusters. Further analysis shows that the LLQ cluster is statistically significantly different from either of the 2 other clusters, while this is not the case between the 2 clusters themselves. By adding the 3000 GRAM birth weight dashed horizontal line and the 37 week dashed vertical line, representing the demarcations for SGA and preterm we find a correspondence between SGA and preterm delivery, a widely known outcome. The clusters were named after this finding, as: Pre-term; Term, early and Term, full are from 37 weeks and over. Limitations: preterm deliveries account for only **```r prcnt_preterm```%** of the deliveries; we limited the lower gestational age range to 20 weeks(140 days) to exclude fetal non-viability.
+
+
+# High Risk OB
+We have defined another important group,"High Risk OB", based on maternal age greater than 35, diagnosis of HTN or Preeclampsia, DM, multiple gestation and or non-vertex presentation. By these criteria, **```r prcnt_hghRsk```%** are classified as High Risk.
+
+# Service Area
+
+What is CSVS OB service area? Let's look at where our patients come from using a zipcode information (99999 represents all others);
+```{r echo=FALSE}
+table(ob_data_chr$zip)
+```
+
+and a map of the County.
+
+```{r echo=FALSE}
+ob_map <- readRDS("OB Service Area.RDS")
+ob_map
+```
+
+We are going to continue the analysis of our data using zip-code distribution, Clustering and high Risk oB as examples before moving to generalized analyses.
+
+# XICOR
+
+---
+title: "Interactive Xi Correlation Analysis"
+format: html
+server: shiny
+---
+
+```{r setup, include=FALSE}
+library(shiny)
+library(XICOR)
+library(dplyr)
+library(ggplot2)
+library(DT)
+
+# Assuming the dataset is loaded here
+ob_data_clst_xi <- readRDS("All Factored Complete Ready OB Dataset for Analytics.RDS") %>%
+  dplyr::select(zip, lbr_type_cnsldt, membrane_rupture, intrapartal_conditions,
+                presentation_cnsldt, conditions_cnsldt, uds_age, adm_to_del_tm_cat, hghRsk, cluster,
+                age, grav, para, diff_grav_para) %>%
+  mutate(across(c(zip, lbr_type_cnsldt, membrane_rupture, intrapartal_conditions,
+                  presentation_cnsldt, conditions_cnsldt, uds_age, adm_to_del_tm_cat, hghRsk, cluster), as.factor)) %>%
+  mutate(across(c(zip, lbr_type_cnsldt, membrane_rupture, intrapartal_conditions,
+                  presentation_cnsldt, conditions_cnsldt, uds_age, adm_to_del_tm_cat, hghRsk, cluster), as.numeric))
+```
+
+
+```{r}
+#| context: server
+output$xiCorPlot <- renderPlot({
+  req(input$var1, input$var2)
+  if (input$var1 != input$var2) {
+    xi_value <- xicor(ob_data_clst_xi[[input$var1]], ob_data_clst_xi[[input$var2]])
+    xi_data <- data.frame(Variable1 = input$var1, Variable2 = input$var2, Xi = xi_value)
+    
+    ggplot(xi_data, aes(x = Variable1, y = Xi, fill = Variable2)) +
+      geom_col() +
+      labs(title = paste("Xi Correlation between", input$var1, "and", input$var2),
+           x = "Variable Pair", y = "Xi Correlation") +
+      theme_minimal()
+  } else {
+    ggplot() + labs(title = "Please select two different variables")
+  }
+})
+
+output$xiCorTable <- DT::renderDT({
+  req(input$var1, input$var2)
+  if (input$var1 != input$var2) {
+    xi_value <- xicor(ob_data_clst_xi[[input$var1]], ob_data_clst_xi[[input$var2]])
+    datatable(data.frame(Variable1 = input$var1, Variable2 = input$var2, Xi = xi_value), options = list(pageLength = 5, scrollX = TRUE))
+  } else {
+    datatable(data.frame(Message = "Select different variables"), options = list(pageLength = 5, scrollX = TRUE))
+  }
+})
+
+```
+
+```{r}
+# Define the UI layout
+fluidPage(
+  titlePanel("Interactive Xi Correlation Analysis"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("var1", "Select the first variable:", choices = names(ob_data_clst_xi)),
+      selectInput("var2", "Select the second variable:", choices = names(ob_data_clst_xi))
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Xi Correlation Plot", plotOutput("xiCorPlot")),
+        tabPanel("Xi Correlation Table", DTOutput("xiCorTable"))
+      )
+    )
+  )
+)
+
+```
+
+
+# Source a Shiny App
+
+```{r}
+source(file = "partiallyWrkingRShiny5_22.R")
+shinyApp(ui = ui, server = server)
+```
+

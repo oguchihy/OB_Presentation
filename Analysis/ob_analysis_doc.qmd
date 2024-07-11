@@ -1,0 +1,58 @@
+---
+title: "OB Report Analysis"
+author: "Nkwocha"
+format: html
+editor: visual
+---
+
+```{r}
+#https://stackoverflow.com/questions/77989127/in-quarto-how-can-i-show-inline-r-code-that-is-part-of-a-yaml-header
+#https://quarto.org/docs/presentations/
+
+library(tidyverse)
+library(dplyr)
+library(dtplyr)
+library(lubridate)
+library(anytime)
+library(janitor)
+library(ggplot2)
+library(readxl)
+library(readr)
+library(openxlsx)
+library(xlsx)
+library(DataExplorer)
+library(explore)
+library(kableExtra)
+library(leaflet)
+library(htmlwidgets)
+library(DT)
+```
+
+## Map
+
+```{r}
+
+mdl.ds.map.joined <- readRDS("OB Data for Leaflet Map.RDS")
+# Create a color palette function for dynamic coloring based on 'count'
+colorPalette <- colorQuantile(palette = "YlOrRd", domain = mdl.ds.map.joined$count, n = 5)
+
+ob_map <- leaflet(data = mdl.ds.map.joined) %>%
+    addTiles() %>%
+    addPolygons(fillColor = ~colorPalette(count),
+                color = "#BDBDC3",
+                fillOpacity = 0.7,
+                weight = 1,
+                opacity = 1,
+                highlight = highlightOptions(weight = 3,
+                                             color = "#666",
+                                             fillOpacity = 0.7,
+                                             bringToFront = TRUE),
+                label = ~paste("ZIP Code:", ZCTA5CE20, "<br/>Count:", count),
+                labelOptions = labelOptions(direction = 'auto', noHide = F, textOnly = TRUE)) %>%
+    addLegend(pal = colorPalette, values = ~count, opacity = 0.7, title = "Count",
+              position = "bottomright") %>%
+    setView(lng = -121.895, lat = 36.674, zoom = 9)  # Adjust the center and zoom level as needed
+
+saveWidget( , file="https://csvs-workbench-01.acuna.cloud/s/ecb2d345b071ae65c8fd7/files/OHN/quarto/ob_analysis_doc.html")
+```
+

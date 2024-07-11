@@ -1,0 +1,14 @@
+name: ob_data_ver_1
+title: OB DATA Ver. 1
+username: onkwocha
+account: onkwocha
+server: posit.cloud
+hostUrl: https://api.posit.cloud/v1
+appId: 8410951
+bundleId: 8832803
+url: https://posit.cloud/content/8410951
+version: 1
+quarto_version: 1.4.552
+quarto_engines: knitr
+asMultiple: FALSE
+asStatic: FALSE
