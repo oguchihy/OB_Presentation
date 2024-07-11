@@ -1,1 +1,0 @@
-{"frames":[{"func":"text(x = seq(2022, 2022 + (length(tst$deliveries) - 1)/52, by = 1/52)[year_changes], \n    y = par(\"usr\")[3] - 2, labels = years[year_changes], srt = 60, \n    adj = 1, cex = 0.7, font = 2)","file":"","line_number":0,"end_line_number":0,"character_number":0,"end_character_number":0}],"message":"Error: object 'year_changes' not found\n"}
